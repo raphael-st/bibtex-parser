@@ -231,7 +231,7 @@ class Parser
 
     private function readKey(string $char)
     {
-        if (preg_match('/^[a-zA-Z0-9\+:\-]$/u', $char)) {
+        if (preg_match('/^[^\s={},"%]$/u', $char)) {
             $this->appendToBuffer($char);
         } elseif ($this->isWhitespace($char) && empty($this->buffer)) {
             // skip
