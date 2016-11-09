@@ -343,7 +343,6 @@ class Parser
             $this->appendToBuffer($char);
         } elseif ('}' == $this->valueDelimiter && '{' == $char) {
             $this->braceLevel++;
-            $this->appendToBuffer($char);
         } elseif ($this->valueDelimiter == $char) {
             if (0 == $this->braceLevel) {
                 $this->triggerListeners();
@@ -351,7 +350,6 @@ class Parser
                 $this->state = self::VALUE;
             } else {
                 $this->braceLevel--;
-                $this->appendToBuffer($char);
             }
         } elseif ('\\' == $char) {
             $this->isValueEscaped = true;
