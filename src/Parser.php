@@ -337,7 +337,7 @@ class Parser
     {
         if ($this->isValueEscaped) {
             $this->isValueEscaped = false;
-            if ($this->valueDelimiter != $char && '\\' != $char && '%' != $char) {
+            if ($this->valueDelimiter != $char && '\\' != $char && '%' != $char && '&' != $char) {
                 $this->appendToBuffer('\\');
             }
             $this->appendToBuffer($char);
