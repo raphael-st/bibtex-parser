@@ -108,9 +108,9 @@ class Parser
 
     private function parse(string $text)
     {
-        $length = strlen($text);
+        $length = mb_strlen($text);
         for ($position = 0; $position < $length; $position++) {
-            $char = substr($text, $position, 1);
+            $char = mb_substr($text, $position, 1);
             $this->read($char);
             if ("\n" == $char) {
                 $this->line++;
@@ -204,7 +204,7 @@ class Parser
 
     private function readType(string $char)
     {
-        if (preg_match('/^[a-zA-Z]$/', $char)) {
+        if (preg_match('/^[a-zA-Z]$/u', $char)) {
             $this->appendToBuffer($char);
         } else {
             $this->throwExceptionIfBufferIsEmpty($char);
@@ -231,7 +231,7 @@ class Parser
 
     private function readKey(string $char)
     {
-        if (preg_match('/^[a-zA-Z0-9\+:\-]$/', $char)) {
+        if (preg_match('/^[a-zA-Z0-9\+:\-]$/u', $char)) {
             $this->appendToBuffer($char);
         } elseif ($this->isWhitespace($char) && empty($this->buffer)) {
             // skip
@@ -271,7 +271,7 @@ class Parser
 
     private function readValue(string $char)
     {
-        if (preg_match('/^[a-zA-Z0-9]$/', $char)) {
+        if (preg_match('/^[a-zA-Z0-9]$/u', $char)) {
             // when $mayConcatenateValue is true it means there is another
             // value defined before it, so a concatenator char is expected (or
             // a comment as well)
@@ -313,7 +313,7 @@ class Parser
 
     private function readRawValue(string $char)
     {
-        if (preg_match('/^[a-zA-Z0-9]$/', $char)) {
+        if (preg_match('/^[a-zA-Z0-9]$/u', $char)) {
             $this->appendToBuffer($char);
         } else {
             $this->throwExceptionIfBufferIsEmpty($char);
