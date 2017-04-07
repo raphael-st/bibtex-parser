@@ -1,6 +1,7 @@
 {
     "name": "renanbr/bibtex-parser",
-    "description": "Yet another BibTeX parser",
+    "description": "BibTex Parser provides an API to read .bib files programmatically",
+    "keywords": ["bib", "bibtex", "latex", "parser"],
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -9,9 +10,6 @@
             "email": "renandelima@gmail.com"
         }
     ],
-    "require": {
-        "php": "^7.0"
-    },
     "autoload": {
         "psr-4": { "RenanBr\\BibTexParser\\": "src/" }
     },

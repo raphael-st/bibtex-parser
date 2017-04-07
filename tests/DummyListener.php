@@ -1,4 +1,4 @@
-<?php declare (strict_types = 1);
+<?php
 
 /*
  * This file is part of the BibTex Parser.
@@ -16,22 +16,12 @@ use RenanBr\BibTexParser\ListenerInterface;
 class DummyListener implements ListenerInterface
 {
     public $calls = [];
-    public $contexts = [];
 
-    public function bibTexUnitFound(string $text, array $context)
+    public function bibTexUnitFound($text, array $context)
     {
-        $this->calls[] = [$context['state'], $text];
-        $this->contexts[] = $context;
-    }
-
-    public function filterContexts(array $keys)
-    {
-        $contexts = $this->contexts;
-        foreach ($contexts as $key => $context) {
-            $contexts[$key] = array_filter($context, function ($key) use ($keys) {
-                return in_array($key, $keys);
-            }, \ARRAY_FILTER_USE_KEY);
-        }
-        return $contexts;
+        $this->calls[] = [
+            $text,
+            $context,
+        ];
     }
 }

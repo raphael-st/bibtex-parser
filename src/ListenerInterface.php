@@ -1,4 +1,4 @@
-<?php declare (strict_types = 1);
+<?php
 
 /*
  * This file is part of the BibTex Parser.
@@ -13,5 +13,10 @@ namespace RenanBr\BibTexParser;
 
 interface ListenerInterface
 {
-    public function bibTexUnitFound(string $text, array $context);
+    /**
+     * @param string $text The original content of the unit found.
+     *                     Escape character will not be sent.
+     * @param array $context Contains details of the unit found.
+     */
+    public function bibTexUnitFound($text, array $context);
 }

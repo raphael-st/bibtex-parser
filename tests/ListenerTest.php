@@ -1,4 +1,4 @@
-<?php declare (strict_types = 1);
+<?php
 
 /*
  * This file is part of the BibTex Parser.
@@ -24,12 +24,12 @@ class ListenerTest extends \PHPUnit_Framework_TestCase
         $parser->addListener($listener);
         $parser->parseFile(__DIR__ . '/resources/basic.bib');
 
-        $expected = [[
-            'type' => 'basic',
-            'foo' => 'bar',
-        ]];
-        $actual = $listener->export();
-        $this->assertEquals($expected, $actual);
+        $entries = $listener->export();
+        $this->assertCount(1, $entries);
+
+        $entry = $entries[0];
+        $this->assertSame('basic', $entry['type']);
+        $this->assertSame('bar', $entry['foo']);
     }
 
     public function testNullableKey()
@@ -40,16 +40,13 @@ class ListenerTest extends \PHPUnit_Framework_TestCase
         $parser->addListener($listener);
         $parser->parseFile(__DIR__ . '/resources/no-value.bib');
 
-        $expected = [[
-            'type' => 'noValue',
-            'citation-key' => 'foo',
-            'bar' => null,
-        ]];
-        $actual = $listener->export();
-        $this->assertEquals($expected, $actual);
+        $entries = $listener->export();
+        $this->assertCount(1, $entries);
 
-        // because assertEquals() doesn't check variable type
-        $this->assertNull($actual[0]['bar']);
+        $entry = $entries[0];
+        $this->assertSame('noValue', $entry['type']);
+        $this->assertSame('foo', $entry['citation-key']);
+        $this->assertNull($entry['bar']);
     }
 
     public function testValueReading()
@@ -60,23 +57,18 @@ class ListenerTest extends \PHPUnit_Framework_TestCase
         $parser->addListener($listener);
         $parser->parseFile(__DIR__ . '/resources/values-basic.bib');
 
-        $expected = [[
-            'type' => 'valuesBasic',
-            'citation-key' => 'kNull',
-            'kStillNull' => null,
-            'kRaw' => 'raw',
-            'kBraced' => ' braced value ',
-            'kBracedEmpty' => '',
-            'kQuoted' => ' quoted value ',
-            'kQuotedEmpty' => '',
-        ]];
-        $actual = $listener->export();
-        $this->assertEquals($expected, $actual);
+        $entries = $listener->export();
+        $this->assertCount(1, $entries);
 
-        // because assertEquals() doesn't check variable type
-        $this->assertNull($actual[0]['kStillNull']);
-        $this->assertSame('', $actual[0]['kBracedEmpty']);
-        $this->assertSame('', $actual[0]['kQuotedEmpty']);
+        $entry = $entries[0];
+        $this->assertSame('valuesBasic', $entry['type']);
+        $this->assertSame('kNull', $entry['citation-key']);
+        $this->assertNull($entry['kStillNull']);
+        $this->assertSame('raw', $entry['kRaw']);
+        $this->assertSame(' braced value ', $entry['kBraced']);
+        $this->assertSame('', $entry['kBracedEmpty']);
+        $this->assertSame(' quoted value ', $entry['kQuoted']);
+        $this->assertSame('', $entry['kQuotedEmpty']);
     }
 
     public function testValueConcatenation()
@@ -87,16 +79,16 @@ class ListenerTest extends \PHPUnit_Framework_TestCase
         $parser->addListener($listener);
         $parser->parseFile(__DIR__ . '/resources/values-multiple.bib');
 
-        $expected = [[
-            'type' => 'multipleValues',
-            'raw' => 'rawArawB',
-            'quoted' => 'quoted aquoted b',
-            'braced' => 'braced abraced b',
-            'misc' => 'quotedbracedraw',
-            'noSpace' => 'rawquotedbraced',
-        ]];
-        $actual = $listener->export();
-        $this->assertEquals($expected, $actual);
+        $entries = $listener->export();
+        $this->assertCount(1, $entries);
+
+        $entry = $entries[0];
+        $this->assertSame('multipleValues', $entry['type']);
+        $this->assertSame('rawArawB', $entry['raw']);
+        $this->assertSame('quoted aquoted b', $entry['quoted']);
+        $this->assertSame('braced abraced b', $entry['braced']);
+        $this->assertSame('quotedbracedraw', $entry['misc']);
+        $this->assertSame('rawquotedbraced', $entry['noSpace']);
     }
 
     public function testAbbreviation()
@@ -107,30 +99,26 @@ class ListenerTest extends \PHPUnit_Framework_TestCase
         $parser->addListener($listener);
         $parser->parseFile(__DIR__ . '/resources/abbreviation.bib');
 
-        $expected = [[
-            'type' => 'string',
-            'me' => 'Renan',
-            'emptyAbbr' => '',
-            'nullAbbr' => null,
-            'meImportant' => 'Sir Renan'
-        ], [
-            'type' => 'string',
-            'meAccordingToMyMother' => 'Glamorous Sir Renan',
-        ], [
-            'type' => 'abbreviation',
-            'message' => 'Hello Glamorous Sir Renan!',
-            'skip' => 'me',
-            'mustEmpty' => '',
-            'mustNull' => null
-        ]];
-        $actual = $listener->export();
-        $this->assertEquals($expected, $actual);
+        $entries = $listener->export();
+        $this->assertCount(3, $entries);
 
-        // because assertEquals() doesn't check variable type
-        $this->assertSame('', $actual[0]['emptyAbbr']);
-        $this->assertNull($actual[0]['nullAbbr']);
-        $this->assertSame('', $actual[2]['mustEmpty']);
-        $this->assertNull($actual[2]['mustNull']);
+        $entry = $entries[0];
+        $this->assertSame('string', $entry['type']);
+        $this->assertSame('Renan', $entry['me']);
+        $this->assertSame('', $entry['emptyAbbr']);
+        $this->assertNull($entry['nullAbbr']);
+        $this->assertSame('Sir Renan', $entry['meImportant']);
+
+        $entry = $entries[1];
+        $this->assertSame('string', $entry['type']);
+        $this->assertSame('Glamorous Sir Renan', $entry['meAccordingToMyMother']);
+
+        $entry = $entries[2];
+        $this->assertSame('abbreviation', $entry['type']);
+        $this->assertSame('Hello Glamorous Sir Renan!', $entry['message']);
+        $this->assertSame('me', $entry['skip']);
+        $this->assertSame('', $entry['mustEmpty']);
+        $this->assertNull($entry['mustNull']);
     }
 
     public function testTypeOverriding()
@@ -141,12 +129,12 @@ class ListenerTest extends \PHPUnit_Framework_TestCase
         $parser->addListener($listener);
         $parser->parseFile(__DIR__ . '/resources/type-overriding.bib');
 
-        $expected = [[
-            'type' => 'new type value',
-            'foo' => 'bar',
-        ]];
-        $actual = $listener->export();
-        $this->assertEquals($expected, $actual);
+        $entries = $listener->export();
+        $this->assertCount(1, $entries);
+
+        $entry = $entries[0];
+        $this->assertSame('new type value', $entry['type']);
+        $this->assertSame('bar', $entry['foo']);
     }
 
     public function testCitationKey()
@@ -157,12 +145,64 @@ class ListenerTest extends \PHPUnit_Framework_TestCase
         $parser->addListener($listener);
         $parser->parseFile(__DIR__ . '/resources/citation-key.bib');
 
-        $expected = [[
-            'type' => 'citationKey',
-            'citation-key' => 'Someone2016',
-            'foo' => 'bar',
-        ]];
-        $actual = $listener->export();
-        $this->assertEquals($expected, $actual);
+        $entries = $listener->export();
+        $this->assertCount(1, $entries);
+
+        $entry = $entries[0];
+        $this->assertSame('citationKey', $entry['type']);
+        $this->assertSame('Someone2016', $entry['citation-key']);
+        $this->assertSame('bar', $entry['foo']);
+    }
+
+    public function testTagNameCase()
+    {
+        $listenerStandard = new Listener;
+
+        $listenerUpper = new Listener;
+        $listenerUpper->setTagNameCase(\CASE_UPPER);
+
+        $listenerLower = new Listener;
+        $listenerLower->setTagNameCase(\CASE_LOWER);
+
+        $parser = new Parser;
+        $parser->addListener($listenerStandard);
+        $parser->addListener($listenerUpper);
+        $parser->addListener($listenerLower);
+        $parser->parseFile(__DIR__ . '/resources/tag-name-uppercased.bib');
+
+        $entries = $listenerStandard->export();
+        $this->assertCount(1, $entries);
+        $entry = $entries[0];
+        $this->assertSame('tagNameUppercased', $entry['type']);
+        $this->assertSame('bAr', $entry['FoO']);
+
+        $entries = $listenerUpper->export();
+        $this->assertCount(1, $entries);
+        $entry = $entries[0];
+        $this->assertSame('tagNameUppercased', $entry['TYPE']);
+        $this->assertSame('bAr', $entry['FOO']);
+
+        $entries = $listenerLower->export();
+        $this->assertCount(1, $entries);
+        $entry = $entries[0];
+        $this->assertSame('tagNameUppercased', $entry['type']);
+        $this->assertSame('bAr', $entry['foo']);
+    }
+
+    public function testTagValueProcessor()
+    {
+        $listener = new Listener;
+        $listener->setTagValueProcessor(function (&$text, $tag) {
+            $text = "processed-$tag-$text";
+        });
+
+        $parser = new Parser;
+        $parser->addListener($listener);
+        $parser->parseFile(__DIR__ . '/resources/basic.bib');
+
+        $entries = $listener->export();
+        $entry = $entries[0];
+        $this->assertSame('processed-type-basic', $entry['type']);
+        $this->assertSame('processed-foo-bar', $entry['foo']);
     }
 }

@@ -1,4 +1,4 @@
-<?php declare (strict_types = 1);
+<?php
 
 /*
  * This file is part of the BibTex Parser.
@@ -23,6 +23,7 @@ class Parser
     const RAW_VALUE = 'raw_value';
     const BRACED_VALUE = 'braced_value';
     const QUOTED_VALUE = 'quoted_value';
+    const ORIGINAL_ENTRY = 'original_entry';
 
     /**
      * @var string
@@ -38,6 +39,16 @@ class Parser
      * @var string
      */
     private $buffer;
+
+    /**
+     * @var string
+     */
+    private $originalEntry;
+
+    /**
+     * @var int
+     */
+    private $originalEntryOffset;
 
     /**
      * @var int
@@ -84,7 +95,12 @@ class Parser
         $this->listeners[] = $listener;
     }
 
-    public function parseFile(string $file)
+    /**
+     * @param string $file
+     * @throws RenanBr\BibTexParser\ParseException If $file given is not a valid BibTeX.
+     * @throws ErrorException If $file given is not readable.
+     */
+    public function parseFile($file)
     {
         $handle = fopen($file, 'r');
         try {
@@ -99,14 +115,18 @@ class Parser
         }
     }
 
-    public function parseString(string $string)
+    /**
+     * @param string $string
+     * @throws RenanBr\BibTexParser\ParseException If $string given is not a valid BibTeX.
+     */
+    public function parseString($string)
     {
         $this->reset();
         $this->parse($string);
         $this->checkFinalStatus();
     }
 
-    private function parse(string $text)
+    private function parse($text)
     {
         $length = mb_strlen($text);
         for ($position = 0; $position < $length; $position++) {
@@ -140,6 +160,8 @@ class Parser
         $this->state = self::NONE;
         $this->stateAfterCommentIsGone = null;
         $this->buffer = '';
+        $this->originalEntry = '';
+        $this->originalEntryOffset = null;
         $this->line = 1;
         $this->column = 1;
         $this->offset = 0;
@@ -149,8 +171,10 @@ class Parser
         $this->braceLevel = 0;
     }
 
-    private function read(string $char)
+    private function read($char)
     {
+        $previousState = $this->state;
+
         switch ($this->state) {
             case self::NONE:
                 $this->readNone($char);
@@ -181,9 +205,11 @@ class Parser
                 $this->readDelimitedValue($char);
                 break;
         }
+
+        $this->readOriginalEntry($char, $previousState);
     }
 
-    private function readNone(string $char)
+    private function readNone($char)
     {
         if ('%' == $char) {
             $this->stateAfterCommentIsGone = self::NONE;
@@ -195,20 +221,20 @@ class Parser
         }
     }
 
-    private function readComment(string $char)
+    private function readComment($char)
     {
         if ("\n" == $char) {
             $this->state = $this->stateAfterCommentIsGone;
         }
     }
 
-    private function readType(string $char)
+    private function readType($char)
     {
         if (preg_match('/^[a-zA-Z]$/u', $char)) {
             $this->appendToBuffer($char);
         } else {
             $this->throwExceptionIfBufferIsEmpty($char);
-            $this->triggerListeners();
+            $this->triggerListenersWithCurrentBuffer();
 
             // once $char isn't a valid character
             // it must be interpreted as POST_TYPE
@@ -217,7 +243,7 @@ class Parser
         }
     }
 
-    private function readPostType(string $char)
+    private function readPostType($char)
     {
         if ('%' == $char) {
             $this->stateAfterCommentIsGone = self::POST_TYPE;
@@ -229,7 +255,7 @@ class Parser
         }
     }
 
-    private function readKey(string $char)
+    private function readKey($char)
     {
         if (preg_match('/^[^\s={},"%]$/u', $char)) {
             $this->appendToBuffer($char);
@@ -244,7 +270,7 @@ class Parser
             $this->state = self::NONE;
         } else {
             $this->throwExceptionIfBufferIsEmpty($char);
-            $this->triggerListeners();
+            $this->triggerListenersWithCurrentBuffer();
 
             // once $char isn't a valid character
             // it must be interpreted as POST_TYPE
@@ -253,7 +279,7 @@ class Parser
         }
     }
 
-    private function readPostKey(string $char)
+    private function readPostKey($char)
     {
         if ('%' == $char) {
             $this->stateAfterCommentIsGone = self::POST_KEY;
@@ -269,7 +295,7 @@ class Parser
         }
     }
 
-    private function readValue(string $char)
+    private function readValue($char)
     {
         if (preg_match('/^[a-zA-Z0-9]$/u', $char)) {
             // when $mayConcatenateValue is true it means there is another
@@ -311,13 +337,13 @@ class Parser
         }
     }
 
-    private function readRawValue(string $char)
+    private function readRawValue($char)
     {
         if (preg_match('/^[a-zA-Z0-9]$/u', $char)) {
             $this->appendToBuffer($char);
         } else {
             $this->throwExceptionIfBufferIsEmpty($char);
-            $this->triggerListeners();
+            $this->triggerListenersWithCurrentBuffer();
 
             if ('%' == $char) {
                 $this->mayConcatenateValue = true;
@@ -333,7 +359,7 @@ class Parser
         }
     }
 
-    private function readDelimitedValue(string $char)
+    private function readDelimitedValue($char)
     {
         if ($this->isValueEscaped) {
             $this->isValueEscaped = false;
@@ -346,7 +372,7 @@ class Parser
             $this->appendToBuffer($char);
         } elseif ($this->valueDelimiter == $char) {
             if (0 == $this->braceLevel) {
-                $this->triggerListeners();
+                $this->triggerListenersWithCurrentBuffer();
                 $this->mayConcatenateValue = true;
                 $this->state = self::VALUE;
             } else {
@@ -360,14 +386,52 @@ class Parser
         }
     }
 
-    private function throwExceptionIfBufferIsEmpty(string $char)
+    private function readOriginalEntry($char, $previousState)
+    {
+        // normalize states, because comments always belongs to some context
+        $currentState = $this->state == self::COMMENT
+            ? $this->stateAfterCommentIsGone
+            : $this->state;
+        $previousState = $previousState == self::COMMENT
+            ? $currentState // assume current state, whatever it is
+            : $previousState;
+
+        // check if we are reading an entry character
+        $isEntryChar =
+            // when $char simply belongs to an entry
+            $currentState != self::NONE ||
+            // when $previousState is not equal to "none", it means that $char
+            // has just changed the state from something to "none", it happens
+            // when $char closes an entry, for example
+            $previousState != self::NONE;
+
+        if ($isEntryChar) {
+            // append to the buffer
+            if (empty($this->originalEntry)) {
+                $this->originalEntryOffset = $this->offset;
+            }
+            $this->originalEntry .= $char;
+        } elseif (!empty($this->originalEntry)) {
+            // send original value to the listeners
+            $context = [
+                'state' => self::ORIGINAL_ENTRY,
+                'offset' => $this->originalEntryOffset,
+                'length' => $this->offset - $this->originalEntryOffset
+            ];
+            $this->triggerListeners($this->originalEntry, $context);
+            $this->originalEntryOffset = null;
+            $this->originalEntry = '';
+        }
+    }
+
+    private function throwExceptionIfBufferIsEmpty($char)
     {
         if (empty($this->buffer)) {
             $this->throwException($char);
         }
     }
 
-    private function throwException(string $char)
+    private function throwException($char)
     {
         // avoid var_export() weird treatment for \0
         $char = "\0" == $char ? "'\\0'" : var_export($char, true);
@@ -380,7 +444,7 @@ class Parser
         ));
     }
 
-    private function appendToBuffer(string $char)
+    private function appendToBuffer($char)
     {
         if (empty($this->buffer)) {
             $this->bufferOffset = $this->offset;
@@ -388,21 +452,26 @@ class Parser
         $this->buffer .= $char;
     }
 
-    private function triggerListeners()
+    private function triggerListenersWithCurrentBuffer()
     {
         $context = [
             'state' => $this->state,
             'offset' => $this->bufferOffset,
             'length' => $this->offset - $this->bufferOffset
         ];
-        foreach ($this->listeners as $listener) {
-            $listener->bibTexUnitFound($this->buffer, $context);
-        }
+        $this->triggerListeners($this->buffer, $context);
         $this->bufferOffset = null;
         $this->buffer = '';
     }
 
-    private function isWhitespace(string $char): bool
+    private function triggerListeners($text, array $context)
+    {
+        foreach ($this->listeners as $listener) {
+            $listener->bibTexUnitFound($text, $context);
+        }
+    }
+
+    private function isWhitespace($char)
     {
         return ' ' == $char || "\t" == $char || "\n" == $char || "\r" == $char;
     }

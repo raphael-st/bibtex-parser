@@ -1,22 +1,27 @@
 # BibTex Parser
 
-[![Build Status](https://travis-ci.org/renanbr/bibtex-parser.svg?branch=master)](https://travis-ci.org/renanbr/bibtex-parser)
+_BibTex Parser_ is a PHP library that provides an API to read [.bib](http://mirrors.ctan.org/biblio/bibtex/base/btxdoc.pdf) files programmatically.
 
-_Bibtex Parser_ is PHP library that provides an API to read [.bib](http://mirrors.ctan.org/biblio/bibtex/base/btxdoc.pdf) files programmatically.
+[![Build Status](https://travis-ci.org/renanbr/bibtex-parser.svg?branch=master)](https://travis-ci.org/renanbr/bibtex-parser)
 
 ## Install
 
-`composer require renanbr/bibtex-parser`
+~~~bash
+composer require renanbr/bibtex-parser
+~~~
+
+See the [changelog](CHANGELOG.md).
 
 ## Usage
 
-1. Create an instance of `RenanBr\BibTexParser\ListenerInterface`;
-2. Create an instance of `RenanBr\BibTexParser\Parser`;
-3. Attach the Listener to the Parser;
-4. Parse a _file_ calling `parseFile()`, or a _string_ calling `parseString()`;
-5. Get data from the Listener (it depends on the implementation).
-
-Sample:
+1. Create an instance of `RenanBr\BibTexParser\ListenerInterface`
+    - `RenanBr\BibTexParser\Listener`, described further in this document, implements this interface and provides many options
+2. Create an instance of `RenanBr\BibTexParser\Parser`
+3. Attach the Listener to the Parser
+4. Parse a _file_ calling `parseFile($file)`...
+    - ... or a _string_ calling `parseString($string)`
+5. Get data from the Listener (it depends on the interface implementation)
+    - `RenanBr\BibTexParser\Listener` provides the `export()` method
 
 ```php
 $listener = new RenanBr\BibTexParser\Listener;
@@ -49,50 +54,92 @@ Below we have the `example.bib` source file used in the sample above.
 }
 ```
 
-### Listener
-
-As you may noticed, this library provides `RenanBr\BibTexParser\Listener` as a `RenanBr\BibTexParser\ListenerInterface` implementation.
-Its features are:
-- It replaces raw values according to their [abbreviations](http://www.bibtex.org/Format/), when this exists.
-- It [concatenates](http://www.bibtex.org/Format/) values when necessary;
-- If the first key has null as value, it interprets the key name as a value of "citation-key" instead;
-- It provides the `export()` method, which returns all entries found.
-
 ## API
 
-### Parser
+### RenanBr\BibTexParser\Parser
 
 ```php
 class RenanBr\BibTexParser\Parser
 {
-    public function parseFile(string $file);
-    public function parseString(string $string);
-    public function addListener(RenanBr\BibTexParser\ListenerInterface $listener);
+    /**
+     * @throws RenanBr\BibTexParser\ParseException If $file given is not a valid BibTeX.
+     * @throws ErrorException If $file given is not readable.
+     */
+    public function parseFile(string $file): void;
+
+    /**
+     * @throws RenanBr\BibTexParser\ParseException If $string given is not a valid BibTeX.
+     */
+    public function parseString(string $string): void;
+
+    public function addListener(RenanBr\BibTexParser\ListenerInterface $listener): void;
 }
 ```
 
-Both `parseFile()` and `parseString()` may throw a `RenanBr\BibTexParser\ParseException`.
-The `parseFile()` may even throw a native `ErrorException` if file given can't be read.
-
-### ListenerInterface
+### RenanBr\BibTexParser\ListenerInterface
 
 ```php
 interface RenanBr\BibTexParser\ListenerInterface
 {
-    public function bibTexUnitFound(string $text, array $context);
+    /**
+     * @param string $text The original content of the unit found.
+     *                     Escape character will not be sent.
+     * @param array $context Contains details of the unit found.
+     */
+    public function bibTexUnitFound(string $text, array $context): void;
 }
 ```
 
-The `$context` variable gives informations about the text found.
-The context keys are:
-- `$context['state']` contains the current Parser's state.
-  Its value may assume:
+The `$context` variable explained:
+- The `state` key contains the current parser's state.
+  It may assume:
   - `Parser::TYPE`
   - `Parser::KEY`
   - `Parser::RAW_VALUE`
   - `Parser::BRACED_VALUE`
   - `Parser::QUOTED_VALUE`
-- `$context['offset']` contains the text beginning position.
+  - `Parser::ORIGINAL_ENTRY`
+- `offset` contains the text beginning position.
   It may be useful, for example, to [seek](https://php.net/fseek) a file;
-- `$context['length']` contains the original text length.
-  It may differ from string length sent to the listener because may there are escaped values.
+- `length` contains the original text length.
+  It may differ from string length sent to the listener because may there are escaped characters.
+
+#### RenanBr\BibTexParser\Listener
+
+As you may noticed, this library provides `RenanBr\BibTexParser\Listener` as a `RenanBr\BibTexParser\ListenerInterface` implementation.
+Its features are:
+- `export()` returns all entries found;
+- It exposes the original entry text in the `_original` key of each entry;
+- It [concatenates](http://www.bibtex.org/Format/) tag values;
+- It handles [abbreviations](http://www.bibtex.org/Format/);
+- If the first tag has no value, the tag name is interpreted as value of `citation-key` tag instead.
+- It allows to inject tag value processor through `setTagValueProcessor()`.
+  Once BibTeX contain LaTeX, this method may be useful to translate them into HTML, for example.
+- It handles tag name case through `setTagNameCase()`
+
+```php
+class RenanBr\BibTexParser\Listener implements RenanBr\BibTexParser\ListenerInterface
+{
+    /**
+     * @return array All entries found during a parsing process.
+     */
+    public function export(): array;
+
+    /**
+     * @param int|null $case CASE_LOWER, CASE_UPPER or null (no traitement)
+     */
+    public function setTagNameCase(int|null $case): void;
+
+    /**
+     * @param callable|null $processor Function to be applied to every member of an BibTeX entry.
+     *                                 It uses array_walk() internally.
+     *                                 The suggested signature for the argument is:
+     *                                 function (string &$value, string $tag);
+     */
+    public function setTagValueProcessor(callable|null $processor): void;
+
+    /* Inherited and implemented methods */
+
+    public function bibTexUnitFound(string $text, array $context): void;
+}
+```
