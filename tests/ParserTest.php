@@ -222,7 +222,6 @@ class ParserTest extends \PHPUnit_Framework_TestCase
             [$dir . '/space-after-at-sign.bib', "' ' at line 1 column 2"],
             [$dir . '/splitted-key.bib', "'k' at line 2 column 14"],
             [$dir . '/splitted-type.bib', "'T' at line 1 column 11"],
-            [$dir . '/trailing-comma.bib', "'}' at line 3 column 1"],
             [$dir . '/no-comment.bib', "'i' at line 1 column 1"],
             [$dir . '/double-concat.bib', "'#' at line 2 column 20"],
         ];
