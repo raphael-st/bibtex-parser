@@ -83,7 +83,7 @@ class Listener implements ListenerInterface
     {
         switch ($context['state']) {
             case Parser::TYPE:
-                $this->entries[] = ['type' => $text];
+                $this->entries[] = ['_type' => $text];
                 break;
 
             case PARSER::KEY:
